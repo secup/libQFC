@@ -11,7 +11,8 @@ int main(int argc, char **argv[])
 
     uint8_t result = 0;
 
-    result = startStreaming(0, "rtsp://zephyr.rtsp.stream/pattern?streamKey=2264d029cc1d77c0afb347e4470a8b03", 1920, 1080);
+    //result = startStreaming(0, "rtsp://zephyr.rtsp.stream/pattern?streamKey=2264d029cc1d77c0afb347e4470a8b03", 1920, 1080);
+    result = startStreaming(0,"rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4", 1920, 1080);
 
     getchar();
     return 0;
@@ -54,8 +55,42 @@ void DLL_LOCAL launchThread(void *args)
 
 uint8_t DLL_PUBLIC isCapturing(uint8_t camId)
 {
-    if (camId >= 0 && camId <= MAX_CAMS)
+    if (isValidCamId(camId))
         return cams[camId].isCapturing;
+}
+
+size_t DLL_PUBLIC getFrameSize(uint8_t camId) {
+
+    if (!rBuffer[camId]) {
+        return 0;
+    }
+
+    return rBuffer[camId]->size;
+
+}
+
+// Lock ??!?!?
+uint8_t DLL_PUBLIC getFrame(uint8_t camId, void *container) {
+
+    if (!isValidCamId(camId))
+        return 0;
+
+    if (sizeof(container) < rBuffer[camId]->size)
+        return -1;
+
+    
+
+
+
+
+}
+
+uint8_t isValidCamId(uint8_t camId) {
+    if (camId >= 0 && camId <= MAX_CAMS) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 void *ffmpegStartStreaming(void *args)

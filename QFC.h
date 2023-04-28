@@ -60,20 +60,21 @@
 // PUBLIC API
 
 int8_t DLL_PUBLIC startStreaming(uint8_t camId, const char* rtspAddress, uint32_t width, uint32_t height);
-void* ffmpegStartStreaming(void *arg); // thread function
-
-
+size_t DLL_PUBLIC getFrameSize(uint8_t camId);
+uint8_t DLL_PUBLIC getFrame(uint8_t camId, void *container);
 uint8_t DLL_PUBLIC isCapturing(uint8_t camId);
 
 // End of PUBLIC API
 
+void* ffmpegStartStreaming(void *arg); // thread function
+uint8_t isValidCamId(uint8_t camId);
 
 void DLL_LOCAL launchThread(void *args);
 
 
 struct cam_st {
     uint8_t camId;
-    char rtspAddress[100];
+    char rtspAddress[255];
     uint8_t isConnected;
     uint8_t isCapturing;
     uint8_t isEOS;
