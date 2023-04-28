@@ -1,5 +1,9 @@
 #include "QFC.h"
 
+#include "ringbuf_dynamic.c"
+
+ringBuffer_t *rBuffer[MAX_CAMS];
+
 int main(int argc, char **argv[])
 {
 
@@ -276,6 +280,14 @@ void *ffmpegStartStreaming(void *args)
             fclose(fp);
             
 
+            if (!rBuffer[cam->camId]) {
+                rBuffer[cam->camId] = malloc(sizeof(ringBuffer_t));
+                rb_init(rBuffer[cam->camId], MAX_BUFFERED_FRAMES, imageBufferSize);
+            }
+
+            // Lock?!??!
+            rb_push(rBuffer[cam->camId], finalFrameBuffer);
+
             // Write buffer into ringbuffer rdy for consumption.
 
             av_frame_unref(frame);
@@ -322,6 +334,10 @@ cleanup:
     }
     if (finalFrameBuffer) {
         av_free(finalFrameBuffer);
+    }
+    if (rBuffer[cam->camId]) {
+        rb_free(rBuffer[cam->camId]);
+        free(rBuffer[cam->camId]);
     }
 
     pthread_exit(0);

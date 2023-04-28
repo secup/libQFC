@@ -1,4 +1,6 @@
-#include <stdio.h>
+#ifndef __QFC__
+#define __QFC__
+
 
 #if defined _WIN32 || defined __CYGWIN__ || defined __MINGW32__
 
@@ -50,6 +52,11 @@
 
 // Maximum number of cams that we can process internally.
 #define MAX_CAMS 9
+
+// Maximum number of buffered frames
+#define MAX_BUFFERED_FRAMES 30
+
+
 // PUBLIC API
 
 int8_t DLL_PUBLIC startStreaming(uint8_t camId, const char* rtspAddress, uint32_t width, uint32_t height);
@@ -80,3 +87,5 @@ struct cam_st {
 typedef struct cam_st cam_t;
 
 cam_t cams[MAX_CAMS];
+
+#endif
