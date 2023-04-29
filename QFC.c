@@ -7,13 +7,46 @@ ringBuffer_t *rBuffer[MAX_CAMS];
 int main(int argc, char **argv[])
 {
 
-    // Start a test with Camera 1
+    // Start a test with 1 Camera (this would be normally executed from the main executable)
 
-    uint8_t result = 0;
+    int8_t result = 0;
+    int32_t frameSize = 0;
+    uint8_t *framePointer;
 
-    //result = startStreaming(0, "rtsp://zephyr.rtsp.stream/pattern?streamKey=2264d029cc1d77c0afb347e4470a8b03", 1920, 1080);
-    result = startStreaming(0,"rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4", 1920, 1080);
+    result = startStreaming(0, "rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4", 1920, 1080);
 
+    // Do something else for 2 seconds to wait and see if connected...
+    sleep(2);
+
+    if (!isConnected(0))
+    {
+        fprintf(stderr, "Main: Cam #0 is not connected!\n");
+        return 0;
+    }
+
+    frameSize = getFrameSize(0);
+
+    fprintf(stderr, "Main: Cam 0 got a framesize of %d\n", frameSize);
+
+   
+    while (isCapturing(0))
+    {
+        framePointer = getFrame(0);
+        
+        if (!framePointer) {
+            // no more frames to process... loop until we do.
+            continue;
+        }
+
+        frameSize = getFrameSize(0);
+
+        // Use frame (yuv420p) data to contruct something useful...
+        printf("Main: Cam 0 -> We have a usable frame (%d)! size is %d bytes. Location is %p\n", rBuffer[0]->count, frameSize, framePointer);
+        stopStreaming(0);
+        break;
+    }
+    
+    printf("Main: Exiting main program...\n");
     getchar();
     return 0;
 }
@@ -22,7 +55,7 @@ int main(int argc, char **argv[])
  * WITHIN a thread accessing global variable "cams" , but only using a unique id.
  *
  */
-int8_t DLL_PUBLIC startStreaming(uint8_t camId, const char *rtspAddress, uint32_t width, uint32_t height)
+DLL_PUBLIC int8_t startStreaming(uint8_t camId, const char *rtspAddress, uint32_t width, uint32_t height)
 {
 
     if (cams[camId].isConnected)
@@ -39,7 +72,21 @@ int8_t DLL_PUBLIC startStreaming(uint8_t camId, const char *rtspAddress, uint32_
     launchThread(&cams[camId]);
 }
 
-void DLL_LOCAL launchThread(void *args)
+DLL_PUBLIC uint8_t stopStreaming(uint8_t camId)
+{
+
+    if (isValidCamId(camId))
+    {
+        cams[camId].isEOS = 1;
+    }
+    else
+    {
+        return 0;
+    }
+    return 1;
+}
+
+DLL_LOCAL void launchThread(void *args)
 {
 
 #if defined _WIN32
@@ -53,47 +100,55 @@ void DLL_LOCAL launchThread(void *args)
 #endif
 }
 
-uint8_t DLL_PUBLIC isCapturing(uint8_t camId)
+DLL_PUBLIC uint8_t isCapturing(uint8_t camId)
 {
     if (isValidCamId(camId))
         return cams[camId].isCapturing;
 }
 
-size_t DLL_PUBLIC getFrameSize(uint8_t camId) {
+DLL_PUBLIC uint8_t isConnected(uint8_t camId)
+{
+    if (isValidCamId(camId))
+        return cams[camId].isConnected;
+}
 
-    if (!rBuffer[camId]) {
+DLL_PUBLIC size_t getFrameSize(uint8_t camId)
+{
+
+    if (!rBuffer[camId])
+    {
         return 0;
     }
 
     return rBuffer[camId]->size;
-
 }
 
-// Lock ??!?!?
-uint8_t DLL_PUBLIC getFrame(uint8_t camId, void *container) {
+DLL_PUBLIC uint8_t* getFrame(uint8_t camId)
+{
+
+    uint8_t *result;
 
     if (!isValidCamId(camId))
         return 0;
 
-    if (sizeof(container) < rBuffer[camId]->size)
-        return -1;
+    result = rb_pop(rBuffer[camId]);
 
-    
-
-
-
-
+    return result;
 }
 
-uint8_t isValidCamId(uint8_t camId) {
-    if (camId >= 0 && camId <= MAX_CAMS) {
+DLL_LOCAL uint8_t isValidCamId(uint8_t camId)
+{
+    if (camId >= 0 && camId <= MAX_CAMS)
+    {
         return 1;
-    } else {
+    }
+    else
+    {
         return 0;
     }
 }
 
-void *ffmpegStartStreaming(void *args)
+DLL_LOCAL void *ffmpegStartStreaming(void *args)
 {
 
     const AVCodec *codec = NULL;
@@ -115,7 +170,6 @@ void *ffmpegStartStreaming(void *args)
     FILE *fp;
 
     cam_t *cam = (cam_t *)args;
-    fprintf(stderr, "In thread of cam #%d\n", cam->camId);
 
     formatContext = avformat_alloc_context();
     // Start ffmpeg process ...
@@ -124,12 +178,11 @@ void *ffmpegStartStreaming(void *args)
 
     if (avformat_open_input(&formatContext, cam->rtspAddress, NULL, NULL) != 0)
     {
-        printf("FATAL: Cam #%d cannot connect to %s\n", cam->camId, cam->rtspAddress);
+        fprintf(stderr, "%s FATAL: Cam #%d cannot connect to %s\n", __FILE__, cam->camId, cam->rtspAddress);
         goto cleanup;
     }
 
     cam->isConnected = 1;
-    printf("INFO: Cam #%d is connected to %s\n", cam->camId, cam->rtspAddress);
 
     if (avformat_find_stream_info(formatContext, NULL) < 0)
     {
@@ -140,7 +193,7 @@ void *ffmpegStartStreaming(void *args)
 
     if (videoStreamId < 0)
     {
-        fprintf(stderr, "FATAL: Cam #%d -> Could not find a video stream!\n", cam->camId);
+        fprintf(stderr, "%s FATAL: Cam #%d -> Could not find a video stream!\n", __FILE__, cam->camId);
         goto cleanup;
     }
 
@@ -149,7 +202,7 @@ void *ffmpegStartStreaming(void *args)
     if (!codec)
     {
         // This is pretty sad, cannot recover...
-        fprintf(stderr, "FATAL: Cam #%d -> Cannot find a decoder for this stream, exiting\n", cam->camId);
+        fprintf(stderr, "%s FATAL: Cam #%d -> Cannot find a decoder for this stream, exiting\n", __FILE__, cam->camId);
         goto cleanup;
     }
 
@@ -160,7 +213,7 @@ void *ffmpegStartStreaming(void *args)
     // Open codec ...
     if (avcodec_open2(codecContext, codec, NULL) < 0)
     {
-        fprintf(stderr, "FATAL: Cam #%d -> Error opening with avcodec_open2\n", cam->camId);
+        fprintf(stderr, "%s FATAL: Cam #%d -> Error opening with avcodec_open2\n", __FILE__, cam->camId);
         goto cleanup;
     }
 
@@ -170,7 +223,7 @@ void *ffmpegStartStreaming(void *args)
 
     if (!frame || !packet)
     {
-        fprintf(stderr, "FATAL: Cannot allocate frame or packet\n");
+        fprintf(stderr, "%s FATAL: Cannot allocate frame or packet\n", __FILE__);
         goto cleanup;
     }
 
@@ -204,7 +257,7 @@ void *ffmpegStartStreaming(void *args)
 
         if (result < 0)
         {
-            fprintf(stderr, "FATAL: Cam #%d decoder error (%d)\n", cam->camId, result);
+            fprintf(stderr, "%s FATAL: Cam #%d decoder error (%d)\n", __FILE__, cam->camId, result);
             break;
         }
 
@@ -221,11 +274,12 @@ void *ffmpegStartStreaming(void *args)
 
             if (result < 0)
             {
-                fprintf(stderr, "FATAL: Cam %d -> Error while fetching frame\n", cam->camId);
+                fprintf(stderr, "%s FATAL: Cam %d -> Error while fetching frame\n", __FILE__, cam->camId);
                 goto cleanup;
             }
 
-            fprintf(stderr, "INFO: Cam #%d -> Frame %d (%dx%d), type = %c , size = %d bytes, format = %d (%s), pts %ld keyFrame %d\n",
+            fprintf(stderr, "%s INFO: Cam #%d -> Frame %d (%dx%d), type = %c , size = %d bytes, format = %d (%s), pts %ld keyFrame %d\n",
+                    __FILE__,
                     cam->camId,
                     codecContext->frame_num,
                     frame->width,
@@ -256,10 +310,10 @@ void *ffmpegStartStreaming(void *args)
 
                     );
 
-                    convertFrameSize = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, 
-                        cam->requestedWidth ? cam->requestedWidth : frame->width,
-                        cam->requestedHeight ? cam->requestedHeight : frame->height,
-                        1);
+                    convertFrameSize = av_image_get_buffer_size(AV_PIX_FMT_YUV420P,
+                                                                cam->requestedWidth ? cam->requestedWidth : frame->width,
+                                                                cam->requestedHeight ? cam->requestedHeight : frame->height,
+                                                                1);
 
                     convertFrameBuffer = (uint8_t *)av_malloc(convertFrameSize * sizeof(uint8_t));
                     av_image_fill_arrays(
@@ -269,53 +323,46 @@ void *ffmpegStartStreaming(void *args)
                         AV_PIX_FMT_YUV420P,
                         cam->requestedWidth ? cam->requestedWidth : frame->width,
                         cam->requestedHeight ? cam->requestedHeight : frame->height,
-                        1
-                    );
+                        1);
                 }
 
                 convertFrame->width = cam->requestedWidth ? cam->requestedWidth : frame->width;
                 convertFrame->height = cam->requestedHeight ? cam->requestedHeight : frame->height;
 
                 // Actual scaling
-                sws_scale(resize, (const uint8_t* const*)(frame->data), (frame->linesize), 0, frame->height, convertFrame->data, convertFrame->linesize);
+                sws_scale(resize, (const uint8_t *const *)(frame->data), (frame->linesize), 0, frame->height, convertFrame->data, convertFrame->linesize);
 
                 toWriteFrame = convertFrame;
             }
-            else {
+            else
+            {
                 toWriteFrame = frame;
             }
 
-            if (toWriteFrame->format == -1) {
+            if (toWriteFrame->format == -1)
+            {
                 toWriteFrame->format = AV_PIX_FMT_YUV420P;
             }
 
             imageBufferSize = av_image_get_buffer_size(toWriteFrame->format, toWriteFrame->width, toWriteFrame->height, 1);
 
-            fprintf(stderr,"INFO: OUTPUT Cam #%d -> Frame format %d (%s), %dx%d, %d bytes ready to be consumed\n", 
-                cam->camId,
-                toWriteFrame->format,
-                av_get_pix_fmt_name(toWriteFrame->format),
-                toWriteFrame->width,
-                toWriteFrame->height,
-                imageBufferSize
-            );
-
+            fprintf(stderr, "%s INFO: OUTPUT Cam #%d -> Frame format %d (%s), %dx%d, %d bytes ready to be consumed\n",
+                    __FILE__,
+                    cam->camId,
+                    toWriteFrame->format,
+                    av_get_pix_fmt_name(toWriteFrame->format),
+                    toWriteFrame->width,
+                    toWriteFrame->height,
+                    imageBufferSize);
 
             finalFrameBuffer = av_malloc(imageBufferSize);
             av_image_copy_to_buffer(finalFrameBuffer, imageBufferSize,
-                                      (const uint8_t * const *)toWriteFrame->data,
-                                      (const int *)toWriteFrame->linesize, toWriteFrame->format,
-                                      toWriteFrame->width, toWriteFrame->height, 1);
+                                    (const uint8_t *const *)toWriteFrame->data,
+                                    (const int *)toWriteFrame->linesize, toWriteFrame->format,
+                                    toWriteFrame->width, toWriteFrame->height, 1);
 
-
-            // DEBUG Writing to view image?
-
-            fp = fopen("dump.yuv","wb");
-            fwrite(finalFrameBuffer, imageBufferSize, 1, fp);
-            fclose(fp);
-            
-
-            if (!rBuffer[cam->camId]) {
+            if (!rBuffer[cam->camId])
+            {
                 rBuffer[cam->camId] = malloc(sizeof(ringBuffer_t));
                 rb_init(rBuffer[cam->camId], MAX_BUFFERED_FRAMES, imageBufferSize);
             }
@@ -323,21 +370,13 @@ void *ffmpegStartStreaming(void *args)
             // Lock?!??!
             rb_push(rBuffer[cam->camId], finalFrameBuffer);
 
-            // Write buffer into ringbuffer rdy for consumption.
-
-            av_frame_unref(frame);
-            if (convertFrame) {
-                av_frame_unref(convertFrame);
-            }
-
-            // DEUBG
-            cam->isEOS = 1;
+            
         }
         av_packet_unref(packet);
     }
 
 cleanup:
-    fprintf(stderr, "Exiting thread (cleanup) of cam #%d\n", cam->camId);
+    fprintf(stderr, "%s Exiting thread (cleanup) of cam #%d\n", __FILE__, cam->camId);
     cam->isCapturing = 0;
     // Cleanup
     avformat_network_deinit();
@@ -345,32 +384,40 @@ cleanup:
     avformat_close_input(&formatContext);
     avformat_free_context(formatContext);
 
-    if (codec) {
+    if (codec)
+    {
         avcodec_close(codecContext);
         avcodec_free_context(&codecContext);
     }
 
-    if (packet) {
+    if (packet)
+    {
         av_packet_free(&packet);
     }
 
-    if (frame) {
+    if (frame)
+    {
         av_frame_free(&frame);
     }
 
-    if (convertFrame) {
+    if (convertFrame)
+    {
         av_frame_free(&convertFrame);
     }
-    if (convertFrameBuffer) {
+    if (convertFrameBuffer)
+    {
         av_free(convertFrameBuffer);
     }
-    if (resize) {
+    if (resize)
+    {
         sws_freeContext(resize);
     }
-    if (finalFrameBuffer) {
+    if (finalFrameBuffer)
+    {
         av_free(finalFrameBuffer);
     }
-    if (rBuffer[cam->camId]) {
+    if (rBuffer[cam->camId])
+    {
         rb_free(rBuffer[cam->camId]);
         free(rBuffer[cam->camId]);
     }

@@ -40,12 +40,17 @@ void rb_push(ringBuffer_t *cb, const void *item)
     cb->count++;
 }
 
-void rb_pop(ringBuffer_t *cb, void *item)
+uint8_t* rb_pop(ringBuffer_t *cb)
 {
+    if (cb->count == 0)
+        return 0;
     
-    memcpy(item, cb->tail, cb->size);
+    //memcpy(item, cb->tail, cb->size);
+    uint8_t *pMem = (uint8_t *)cb->tail;
+
     cb->tail = (char*)cb->tail + cb->size;
     if(cb->tail == cb->buffer_end)
         cb->tail = cb->buffer;
     cb->count--;
+    return pMem;
 }
