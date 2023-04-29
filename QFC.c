@@ -4,6 +4,7 @@
 
 ringBuffer_t *rBuffer[MAX_CAMS];
 
+/**
 int main(int argc, char **argv[])
 {
 
@@ -50,6 +51,7 @@ int main(int argc, char **argv[])
     getchar();
     return 0;
 }
+*/
 
 /**
  * WITHIN a thread accessing global variable "cams" , but only using a unique id.
