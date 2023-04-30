@@ -15,10 +15,10 @@ find_library(SWSCALE_LIB swscale)
 
 add_compile_definitions(BUILDING_DLL)
 
-add_library(libQFC SHARED QFC.c QFC.h)
+add_library(QFC SHARED QFC.c QFC.h)
 #add_executable(libQFC QFC.c QFC.h)
 
-target_link_libraries(libQFC Threads::Threads ${AVCODEC_LIB} ${AVFORMAT_LIB} ${AVUTIL_LIB} ${SWSCALE_LIB})
+target_link_libraries(QFC Threads::Threads ${AVCODEC_LIB} ${AVFORMAT_LIB} ${AVUTIL_LIB} ${SWSCALE_LIB})
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

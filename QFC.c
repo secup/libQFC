@@ -369,9 +369,10 @@ DLL_LOCAL void *ffmpegStartStreaming(void *args)
                 rb_init(rBuffer[cam->camId], MAX_BUFFERED_FRAMES, imageBufferSize);
             }
 
-            // Lock?!??!
             rb_push(rBuffer[cam->camId], finalFrameBuffer);
 
+            av_free(finalFrameBuffer);
+            av_frame_unref(frame);
             
         }
         av_packet_unref(packet);
