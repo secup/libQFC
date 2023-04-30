@@ -371,7 +371,7 @@ DLL_LOCAL void *ffmpegStartStreaming(void *args)
 
             rb_push(rBuffer[cam->camId], finalFrameBuffer);
 
-            av_free(finalFrameBuffer);
+            av_free(finalFrameBuffer); finalFrameBuffer = NULL;
             av_frame_unref(frame);
             
         }
